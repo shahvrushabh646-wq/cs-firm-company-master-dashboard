@@ -1,0 +1,8 @@
+{
+  "name": "cs-firm-company-master",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first company master dashboard for a Company Secretary firm",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=22.5" }
+}
