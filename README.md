@@ -2,28 +2,25 @@
 
 A Vercel-compatible dashboard for managing company master data, directors/KMP, auditors and compliance tasks.
 
-## Secure cloud saving
+## Dashboard access and cloud sync
 
-- Company, director/KMP, auditor and compliance records are saved in the browser immediately and synchronized to the signed-in user's Supabase account.
-- Sign in with the same email/password on another device to retrieve the same cloud-saved records.
-- On the first sign-in, existing records in that browser are merged into the cloud account. Records already in the cloud are retained; browser-only records are added without deleting cloud records.
+- The dashboard opens directly without showing a login page.
+- Records continue saving immediately in this browser.
+- Select **Cloud sign in** in the header when you want secure sync across devices. Once signed in, the session is remembered on that device.
+- Sign in with the same email/password on each device to access the same cloud records.
+- On first sign-in, browser records are merged into the account. Existing cloud records are retained; duplicate records with the same `_id` are not added twice.
 - Supabase Row Level Security restricts each account to its own dashboard row.
-- The Supabase publishable key is used in the browser. Never put a service-role key in frontend code.
-- Attachments uploaded through the current attachment controls remain in that browser's IndexedDB and are not yet synchronized to Supabase Storage. Keep separate copies of important documents.
+- The frontend uses only the Supabase publishable key. Never put a service-role key in frontend code.
+- Attachments uploaded through current attachment controls remain in that browser's IndexedDB and are not synchronized to Supabase Storage yet. Keep separate copies of important documents.
 
 ## One-time Supabase setup
 
-1. Open the Supabase project configured in `index.html`.
+1. Open Supabase project `pbokvrygnkbkanevibeu`.
 2. Open **SQL Editor**, paste the complete contents of `SUPABASE_SETUP.sql`, and run it once.
 3. In **Authentication → Providers**, ensure Email/password sign-in is enabled.
-4. In **Authentication → URL Configuration**, add the deployed Vercel domain to the allowed Site URL / Redirect URLs.
-5. Deploy this branch to Vercel after reviewing/merging the pull request.
-6. Open the dashboard, create an account, verify the email if Supabase requests it, and sign in. Use that same account on every device.
-
-## Deploy
-
-- Vercel serves the static `index.html` through `vercel.json`.
-- Confirm the deployed dashboard loads and that the header shows **Cloud sync: saved ✓** after a record is saved.
+4. In **Authentication → URL Configuration**, add your deployed Vercel domain to the allowed Site URL / Redirect URLs.
+5. Deploy the updated `main` branch to Vercel.
+6. Open the dashboard. It loads without a login prompt. Select **Cloud sign in**, create/sign in to your account, verify email if requested, and use that same account on every device.
 
 ## Included
 
@@ -37,8 +34,8 @@ A Vercel-compatible dashboard for managing company master data, directors/KMP, a
 
 ## Important limitations
 
-- Cloud sync currently stores the dashboard records as a JSON document per authenticated Supabase user.
-- Attachments are browser-local only until Supabase Storage upload/download is implemented.
-- Use a unique, secure password and do not share dashboard credentials.
+- Cloud sync stores dashboard records as a JSON document per authenticated Supabase user.
+- Attachments remain browser-local until Supabase Storage upload/download is implemented.
+- Without signing in, the dashboard works locally on that browser but cannot privately sync across devices.
 - No fictional company records are preloaded. Enter only verified information.
 - Due dates are entered by the user; statutory deadlines are not calculated automatically.
