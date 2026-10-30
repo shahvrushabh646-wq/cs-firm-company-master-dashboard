@@ -142,4 +142,5 @@ document.querySelector('#signInBtn').addEventListener('click',async()=>{const em
 document.querySelector('#signUpBtn').addEventListener('click',async()=>{const email=document.querySelector('#authEmail').value.trim(),password=document.querySelector('#authPassword').value;const err=document.querySelector('#authError');if(!email||!password){err.textContent='Enter your email address and password.';return}if(password.length<8){err.textContent='Use a password with at least 8 characters.';return}if(!cloudClient){err.textContent='Cloud service is unavailable.';return}err.textContent='Creating account…';const {data,error}=await cloudClient.auth.signUp({email,password});if(error){err.textContent=error.message;return}if(data.session){cloudUser=data.user;hideAuth();updateCloudControls();await syncInitialData()}else{err.textContent='Account created. Verify your email if requested, then sign in here.'}});
 document.querySelector('#signOutBtn').addEventListener('click',async()=>{if(!cloudClient)return;const {error}=await cloudClient.auth.signOut();if(error){cloudStatus('sign out failed');return}cloudUser=null;updateCloudControls()});
 // Dashboard data is always saved locally first. Cloud sync starts only after explicit sign-in.
-initCloud();\n</script></body></html>
+initCloud();
+</script></body></html>
