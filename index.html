@@ -87,7 +87,18 @@ async function extractDirectorMasterPDF(file){
    records.push({'Director name':'','DIN':'','Company name':companyName,'CIN / FCRN':a.cin,'Company status':cleanCell(cells.status).replace(/e-\s+filing/i,'e-filing'),'Designation':cleanCell(cells.designation),'Category':cleanCell(cells.category),'Original appointment date':dateCell(cells.original),'Appointment date':dateCell(cells.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
   }
  }
- const textAll=allText.join(' '),dinMatch=textAll.match(/DIN\s*\/\s*DPIN\s+(\d{8})/i),din=dinMatch?dinMatch[1]:((textAll.match(/\b\d{8}\b/)||[])[0]||''),nameMatch=textAll.match(/Name of Director\/Designated Partner\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\b[A-Z][A-Z]+\s+[A-Z][A-Z]+\b/)||[])[0]||'');
+ const textAll=allText.join(' '),dinMatch=textAll.match(/DIN\s*\/\s*DPIN\s*[:：-]?\s*(\d{8})/i),din=dinMatch?dinMatch[1]:((textAll.match(/\b\d{8}\b/)||[])[0]||'');
+ const nameLabel=/Name\s+of\s+Director\s*\/\s*Designated\s+Partner/i,nameLabelMatch=textAll.match(nameLabel);
+ let directorName='';
+ if(nameLabelMatch){
+  const start=textAll.indexOf(nameLabelMatch[0])+nameLabelMatch[0].length;
+  const tail=textAll.slice(start);
+  const boundary=tail.search(/\s+(?:DIN\s*\/\s*DPIN|List\s+of\s+Associated\s+(?:Companies|LLPs)|Details\s+of\s+Director)\b/i);
+  const rawName=(boundary>=0?tail.slice(0,boundary):tail).replace(/^\s*[:：-]?\s*/,'').trim();
+  directorName=rawName.replace(/\s+/g,' ').replace(/[,:;]+$/,'').trim();
+  if(directorName.length>120||!/[\p{L}]/u.test(directorName)||/\b(?:DIN|DPIN|Associated Companies|Associated LLPs)\b/i.test(directorName))directorName='';
+ }
+ if(!directorName)throw new Error('The full director name could not be read reliably from the MCA PDF header. No rows were imported. Please upload the original searchable Director Master PDF.');
  if(!records.length)throw new Error('No associated-company rows could be read. Please use the original searchable MCA Director Master Info PDF.');
  records.sort((a,b)=>a._sourceRow-b._sourceRow);
  records.forEach(r=>{r['Director name']=directorName;r.DIN=din;delete r._sourceRow});
