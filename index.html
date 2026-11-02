@@ -37,25 +37,30 @@ async function extractDirectorMasterPDF(file){
   for(let i=0;i<lines.length;i++){
    const sr=lines[i].items.find(x=>x.x>=85&&x.x<120&&/^\\d{1,2}$/.test(x.t));
    const cin=lines[i].items.find(x=>x.x>=120&&x.x<265&&cinPattern.test(x.t.replace(/\\s/g,'')));
-   if(sr&&cin)anchors.push({i,sr:Number(sr.t),cin:cin.t.replace(/\\s/g,'')});
+   if(sr&&cin)anchors.push({i,y:lines[i].y,sr:Number(sr.t),cin:cin.t.replace(/\\s/g,'')});
   }
+  if(!anchors.length)continue;
+  const headerCandidates=lines.slice(0,anchors[0].i).map((line,i)=>({line,i})).filter(z=>z.line.items.some(x=>(x.x>=85&&x.x<120&&/^No$/i.test(x.t))||(x.x>=740&&/applicable/i.test(x.t))));
+  const headerBottom=headerCandidates.length?headerCandidates[headerCandidates.length-1].line.y:anchors[0].y+30;
+  const nextSection=lines.find(line=>line.y<anchors[anchors.length-1].y&&line.items.some(x=>/^List$/i.test(x.t))&&line.items.some(x=>/^Associated$/i.test(x.t)));
   for(let n=0;n<anchors.length;n++){
-   const a=anchors[n],from=n===0?0:anchors[n-1].i+1,chunk=lines.slice(from,a.i+1);
+   const a=anchors[n],top=n===0?(headerBottom+a.y)/2:(anchors[n-1].y+a.y)/2;
+   const bottom=n+1<anchors.length?(a.y+anchors[n+1].y)/2:(nextSection?(a.y+nextSection.y)/2:20);
+   const chunk=lines.filter(line=>line.y<=top&&line.y>bottom);
    const cols={name:[],status:[],designation:[],category:[],original:[],appointment:[],cessation:[]};
    for(const line of chunk)for(const it of line.items){
     if(it.x>=260&&it.x<370)cols.name.push(it.t);
-    else if(it.x>=370&&it.x<445)cols.status.push(it.t);
-    else if(it.x>=445&&it.x<520)cols.designation.push(it.t);
+    else if(it.x>=370&&it.x<435)cols.status.push(it.t);
+    else if(it.x>=435&&it.x<520)cols.designation.push(it.t);
     else if(it.x>=520&&it.x<595)cols.category.push(it.t);
     else if(it.x>=595&&it.x<675)cols.original.push(it.t);
     else if(it.x>=675&&it.x<775)cols.appointment.push(it.t);
     else if(it.x>=775&&it.x<850)cols.cessation.push(it.t);
    }
    const name=clean(cols.name);
-   const status=clean(cols.status),designation=clean(cols.designation),category=clean(cols.category);
    if(!name)continue;
    const cessation=getDate(cols.cessation);
-   records.push({'Director name':'','DIN':'','Company name':name,'CIN / FCRN':a.cin,'Company status':status,'Designation':designation,'Category':category,'Original appointment date':getDate(cols.original),'Appointment date':getDate(cols.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
+   records.push({'Director name':'','DIN':'','Company name':name,'CIN / FCRN':a.cin,'Company status':clean(cols.status),'Designation':clean(cols.designation),'Category':clean(cols.category),'Original appointment date':getDate(cols.original),'Appointment date':getDate(cols.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
   }
  }
  const textAll=allText.join(' '),din=(textAll.match(/\\b\\d{8}\\b/)||[])[0]||'',nameMatch=textAll.match(/Name of Director\\/Designated Partner\\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\\b[A-Z][A-Z]+\\s+[A-Z][A-Z]+\\b/)||[])[0]||'');
