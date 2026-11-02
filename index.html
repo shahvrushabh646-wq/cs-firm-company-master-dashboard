@@ -23,8 +23,7 @@ function renderDirectorMaster(){
 async function extractDirectorMasterPDF(file){
  const pdfjs=await ensurePDFJS(),doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise,allText=[],records=[];
  const cinPattern=/^(?:[A-Z]\\d{5}|[A-Z]\\d{5}[A-Z]{2}\\d{4}(?:PTC|NPL|FTC)\\d{6})$/i;
- const headerWords=new Set(['sr.','no','cin/fcrn','company','name','status','designation','category','original','date','of','appointment','at','current','cessation','if','applicable']);
- const clean=(arr)=>arr.map(x=>x.trim()).filter(x=>x&&!headerWords.has(x.toLowerCase())).join(' ').replace(/\\s+/g,' ').trim();
+ const clean=(arr)=>arr.map(x=>x.trim()).filter(Boolean).join(' ').replace(/\\s+/g,' ').trim();
  const getDate=(arr)=>{const m=arr.join(' ').match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/);return m?m[0]:''};
  for(let pageNo=1;pageNo<=doc.numPages;pageNo++){
   const page=await doc.getPage(pageNo),content=await page.getTextContent();
@@ -54,13 +53,13 @@ async function extractDirectorMasterPDF(file){
     else if(it.x>=435&&it.x<520)cols.designation.push(it.t);
     else if(it.x>=520&&it.x<595)cols.category.push(it.t);
     else if(it.x>=595&&it.x<675)cols.original.push(it.t);
-    else if(it.x>=675&&it.x<775)cols.appointment.push(it.t);
-    else if(it.x>=775&&it.x<850)cols.cessation.push(it.t);
+    else if(it.x>=675&&it.x<750)cols.appointment.push(it.t);
+    else if(it.x>=750&&it.x<850)cols.cessation.push(it.t);
    }
    const name=clean(cols.name);
    if(!name)continue;
    const cessation=getDate(cols.cessation);
-   records.push({'Director name':'','DIN':'','Company name':name,'CIN / FCRN':a.cin,'Company status':clean(cols.status),'Designation':clean(cols.designation),'Category':clean(cols.category),'Original appointment date':getDate(cols.original),'Appointment date':getDate(cols.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
+   records.push({'Director name':'','DIN':'','Company name':name,'CIN / FCRN':a.cin,'Company status':clean(cols.status).replace(/e-\\s+filing/i,'e-filing'),'Designation':clean(cols.designation),'Category':clean(cols.category),'Original appointment date':getDate(cols.original),'Appointment date':getDate(cols.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
   }
  }
  const textAll=allText.join(' '),din=(textAll.match(/\\b\\d{8}\\b/)||[])[0]||'',nameMatch=textAll.match(/Name of Director\\/Designated Partner\\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\\b[A-Z][A-Z]+\\s+[A-Z][A-Z]+\\b/)||[])[0]||'');
