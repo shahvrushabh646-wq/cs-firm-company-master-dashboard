@@ -23,8 +23,8 @@ function renderDirectorMaster(){
 async function extractDirectorMasterPDF(file){
  const pdfjs=await ensurePDFJS(),doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise,allText=[],records=[];
  const cinPattern=/^(?:[A-Z]\\d{5}|[A-Z]\\d{5}[A-Z]{2}\\d{4}(?:PTC|NPL|FTC)\\d{6})$/i;
- const clean=(arr)=>arr.map(x=>x.trim()).filter(Boolean).join(' ').replace(/\\s+/g,' ').trim();
- const getDate=(arr)=>{const m=arr.join(' ').match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/);return m?m[0]:''};
+ const cleanCell=(items)=>items.sort((a,b)=>b.y-a.y||a.x-b.x).map(x=>x.t).filter(Boolean).join(' ').replace(/\\s+/g,' ').trim();
+ const dateCell=(items)=>{const m=cleanCell(items).match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/);return m?m[0]:''};
  for(let pageNo=1;pageNo<=doc.numPages;pageNo++){
   const page=await doc.getPage(pageNo),content=await page.getTextContent();
   const items=content.items.filter(x=>x.str&&x.str.trim()).map(x=>({x:Number(x.transform?.[4]||0),y:Number(x.transform?.[5]||0),t:x.str.trim()}));
@@ -33,36 +33,35 @@ async function extractDirectorMasterPDF(file){
   for(const it of items){let line=lines.find(z=>Math.abs(z.y-it.y)<=2);if(!line){line={y:it.y,items:[]};lines.push(line)}line.items.push(it)}
   lines.sort((a,b)=>b.y-a.y);
   const anchors=[];
-  for(let i=0;i<lines.length;i++){
-   const sr=lines[i].items.find(x=>x.x>=85&&x.x<120&&/^\\d{1,2}$/.test(x.t));
-   const cin=lines[i].items.find(x=>x.x>=120&&x.x<265&&cinPattern.test(x.t.replace(/\\s/g,'')));
-   if(sr&&cin)anchors.push({i,y:lines[i].y,sr:Number(sr.t),cin:cin.t.replace(/\\s/g,'')});
+  for(const line of lines){
+   const sr=line.items.find(x=>x.x>=85&&x.x<120&&/^\\d{1,2}$/.test(x.t));
+   const cin=line.items.find(x=>x.x>=120&&x.x<265&&cinPattern.test(x.t.replace(/\\s/g,'')));
+   if(sr&&cin)anchors.push({sr:Number(sr.t),cin:cin.t.replace(/\\s/g,''),y:line.y});
   }
-  if(!anchors.length)continue;
-  const headerCandidates=lines.slice(0,anchors[0].i).map((line,i)=>({line,i})).filter(z=>z.line.items.some(x=>(x.x>=85&&x.x<120&&/^No$/i.test(x.t))||(x.x>=740&&/applicable/i.test(x.t))));
-  const headerBottom=headerCandidates.length?headerCandidates[headerCandidates.length-1].line.y:anchors[0].y+30;
-  const nextSection=lines.find(line=>line.y<anchors[anchors.length-1].y&&line.items.some(x=>/^List$/i.test(x.t))&&line.items.some(x=>/^Associated$/i.test(x.t)));
+  anchors.sort((a,b)=>b.y-a.y);
   for(let n=0;n<anchors.length;n++){
-   const a=anchors[n],top=n===0?(headerBottom+a.y)/2:(anchors[n-1].y+a.y)/2;
-   const bottom=n+1<anchors.length?(a.y+anchors[n+1].y)/2:(nextSection?(a.y+nextSection.y)/2:20);
-   const chunk=lines.filter(line=>line.y<=top&&line.y>bottom);
-   const cols={name:[],status:[],designation:[],category:[],original:[],appointment:[],cessation:[]};
-   for(const line of chunk)for(const it of line.items){
-    if(it.x>=260&&it.x<370)cols.name.push(it.t);
-    else if(it.x>=370&&it.x<435)cols.status.push(it.t);
-    else if(it.x>=435&&it.x<520)cols.designation.push(it.t);
-    else if(it.x>=520&&it.x<595)cols.category.push(it.t);
-    else if(it.x>=595&&it.x<675)cols.original.push(it.t);
-    else if(it.x>=675&&it.x<750)cols.appointment.push(it.t);
-    else if(it.x>=750&&it.x<850)cols.cessation.push(it.t);
+   const a=anchors[n],prev=anchors[n-1],next=anchors[n+1];
+   const gaps=[prev?Math.abs(prev.y-a.y):Infinity,next?Math.abs(a.y-next.y):Infinity].filter(Number.isFinite);
+   const nearestGap=gaps.length?Math.min(...gaps):60;
+   const rowTolerance=Math.min(30,Math.max(19,nearestGap*.48+3));
+   const cells={name:[],status:[],designation:[],category:[],original:[],appointment:[],cessation:[]};
+   for(const it of items){
+    if(Math.abs(it.y-a.y)>rowTolerance)continue;
+    if(it.x>=250&&it.x<370)cells.name.push(it);
+    else if(it.x>=370&&it.x<435)cells.status.push(it);
+    else if(it.x>=435&&it.x<520)cells.designation.push(it);
+    else if(it.x>=520&&it.x<595)cells.category.push(it);
+    else if(it.x>=595&&it.x<675)cells.original.push(it);
+    else if(it.x>=675&&it.x<750)cells.appointment.push(it);
+    else if(it.x>=750&&it.x<840)cells.cessation.push(it);
    }
-   const name=clean(cols.name);
-   if(!name)continue;
-   const cessation=getDate(cols.cessation);
-   records.push({'Director name':'','DIN':'','Company name':name,'CIN / FCRN':a.cin,'Company status':clean(cols.status).replace(/e-\\s+filing/i,'e-filing'),'Designation':clean(cols.designation),'Category':clean(cols.category),'Original appointment date':getDate(cols.original),'Appointment date':getDate(cols.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
+   const companyName=cleanCell(cells.name);
+   if(!companyName)continue;
+   const cessation=dateCell(cells.cessation);
+   records.push({'Director name':'','DIN':'','Company name':companyName,'CIN / FCRN':a.cin,'Company status':cleanCell(cells.status).replace(/e-\\s+filing/i,'e-filing'),'Designation':cleanCell(cells.designation),'Category':cleanCell(cells.category),'Original appointment date':dateCell(cells.original),'Appointment date':dateCell(cells.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
   }
  }
- const textAll=allText.join(' '),din=(textAll.match(/\\b\\d{8}\\b/)||[])[0]||'',nameMatch=textAll.match(/Name of Director\\/Designated Partner\\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\\b[A-Z][A-Z]+\\s+[A-Z][A-Z]+\\b/)||[])[0]||'');
+ const textAll=allText.join(' '),dinMatch=textAll.match(/DIN\\s*\\/\\s*DPIN\\s+(\\d{8})/i),din=dinMatch?dinMatch[1]:((textAll.match(/\\b\\d{8}\\b/)||[])[0]||''),nameMatch=textAll.match(/Name of Director\\/Designated Partner\\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\\b[A-Z][A-Z]+\\s+[A-Z][A-Z]+\\b/)||[])[0]||'');
  if(!records.length)throw new Error('No associated-company rows could be read. Please use the original searchable MCA Director Master Info PDF.');
  records.sort((a,b)=>a._sourceRow-b._sourceRow);
  records.forEach(r=>{r['Director name']=directorName;r.DIN=din;delete r._sourceRow});
