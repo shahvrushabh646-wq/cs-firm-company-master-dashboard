@@ -22,9 +22,9 @@ function renderDirectorMaster(){
 }
 async function extractDirectorMasterPDF(file){
  const pdfjs=await ensurePDFJS(),doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise,allText=[],records=[];
- const cinPattern=/^(?:[A-Z]\\d{5}|[A-Z]\\d{5}[A-Z]{2}\\d{4}(?:PTC|NPL|FTC)\\d{6})$/i;
- const cleanCell=(items)=>items.sort((a,b)=>b.y-a.y||a.x-b.x).map(x=>x.t).filter(Boolean).join(' ').replace(/\\s+/g,' ').trim();
- const dateCell=(items)=>{const m=cleanCell(items).match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/);return m?m[0]:''};
+ const cinPattern=/^(?:[A-Z]\d{5}|[A-Z]\d{5}[A-Z]{2}\d{4}(?:PTC|NPL|FTC)\d{6})$/i;
+ const cleanCell=(items)=>items.sort((a,b)=>b.y-a.y||a.x-b.x).map(x=>x.t).filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+ const dateCell=(items)=>{const m=cleanCell(items).match(/\b\d{2}\/\d{2}\/\d{4}\b/);return m?m[0]:''};
  for(let pageNo=1;pageNo<=doc.numPages;pageNo++){
   const page=await doc.getPage(pageNo),content=await page.getTextContent();
   const items=content.items.filter(x=>x.str&&x.str.trim()).map(x=>({x:Number(x.transform?.[4]||0),y:Number(x.transform?.[5]||0),t:x.str.trim()}));
@@ -34,9 +34,9 @@ async function extractDirectorMasterPDF(file){
   lines.sort((a,b)=>b.y-a.y);
   const anchors=[];
   for(const line of lines){
-   const sr=line.items.find(x=>x.x>=85&&x.x<120&&/^\\d{1,2}$/.test(x.t));
-   const cin=line.items.find(x=>x.x>=120&&x.x<265&&cinPattern.test(x.t.replace(/\\s/g,'')));
-   if(sr&&cin)anchors.push({sr:Number(sr.t),cin:cin.t.replace(/\\s/g,''),y:line.y});
+   const sr=line.items.find(x=>x.x>=85&&x.x<120&&/^\d{1,2}$/.test(x.t));
+   const cin=line.items.find(x=>x.x>=120&&x.x<265&&cinPattern.test(x.t.replace(/\s/g,'')));
+   if(sr&&cin)anchors.push({sr:Number(sr.t),cin:cin.t.replace(/\s/g,''),y:line.y});
   }
   anchors.sort((a,b)=>b.y-a.y);
   for(let n=0;n<anchors.length;n++){
@@ -58,10 +58,10 @@ async function extractDirectorMasterPDF(file){
    const companyName=cleanCell(cells.name);
    if(!companyName)continue;
    const cessation=dateCell(cells.cessation);
-   records.push({'Director name':'','DIN':'','Company name':companyName,'CIN / FCRN':a.cin,'Company status':cleanCell(cells.status).replace(/e-\\s+filing/i,'e-filing'),'Designation':cleanCell(cells.designation),'Category':cleanCell(cells.category),'Original appointment date':dateCell(cells.original),'Appointment date':dateCell(cells.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
+   records.push({'Director name':'','DIN':'','Company name':companyName,'CIN / FCRN':a.cin,'Company status':cleanCell(cells.status).replace(/e-\s+filing/i,'e-filing'),'Designation':cleanCell(cells.designation),'Category':cleanCell(cells.category),'Original appointment date':dateCell(cells.original),'Appointment date':dateCell(cells.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
   }
  }
- const textAll=allText.join(' '),dinMatch=textAll.match(/DIN\\s*\\/\\s*DPIN\\s+(\\d{8})/i),din=dinMatch?dinMatch[1]:((textAll.match(/\\b\\d{8}\\b/)||[])[0]||''),nameMatch=textAll.match(/Name of Director\\/Designated Partner\\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\\b[A-Z][A-Z]+\\s+[A-Z][A-Z]+\\b/)||[])[0]||'');
+ const textAll=allText.join(' '),dinMatch=textAll.match(/DIN\s*\/\s*DPIN\s+(\d{8})/i),din=dinMatch?dinMatch[1]:((textAll.match(/\b\d{8}\b/)||[])[0]||''),nameMatch=textAll.match(/Name of Director\/Designated Partner\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\b[A-Z][A-Z]+\s+[A-Z][A-Z]+\b/)||[])[0]||'');
  if(!records.length)throw new Error('No associated-company rows could be read. Please use the original searchable MCA Director Master Info PDF.');
  records.sort((a,b)=>a._sourceRow-b._sourceRow);
  records.forEach(r=>{r['Director name']=directorName;r.DIN=din;delete r._sourceRow});
