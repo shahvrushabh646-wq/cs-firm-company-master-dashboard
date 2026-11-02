@@ -71,7 +71,7 @@ function setupDirectorMasterControls(){
  const select=document.querySelector('#directorMasterSelect');if(select)select.onchange=()=>{render()};
  const input=document.querySelector('#directorMasterPdf');if(input)input.onchange=async()=>{const file=input.files?.[0];if(!file)return;try{
   const parsed=await extractDirectorMasterPDF(file);
-  const preview=parsed.records.slice(0,5).map(r=>r['_sourceRow']+'. '+r['CIN / FCRN']+' — '+r['Company name']).join('\\n');
+  const preview=parsed.records.slice(0,5).map((r,i)=>(i+1)+'. '+r['CIN / FCRN']+' — '+r['Company name']).join('\\n');
   if(!confirm('MCA PDF preview\\nDirector: '+parsed.directorName+' (DIN '+parsed.din+')\\nRows detected: '+parsed.records.length+'\\n\\n'+preview+'\\n\\nImport these rows? Matching rows from an earlier import will be corrected in place. Unmatched rows will be added; unrelated director records will be kept.'))return;
   const norm=v=>String(v||'').trim().toUpperCase();
   const dateNorm=v=>norm(v).replace(/\\s+/g,'');
