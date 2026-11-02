@@ -22,30 +22,51 @@ function renderDirectorMaster(){
 }
 async function extractDirectorMasterPDF(file){
  const pdfjs=await ensurePDFJS(),doc=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise,allText=[],records=[];
+ const cinPattern=/^(?:[A-Z]\\d{5}|[A-Z]\\d{5}[A-Z]{2}\\d{4}(?:PTC|NPL|FTC)\\d{6})$/i;
+ const headerWords=new Set(['sr.','no','cin/fcrn','company','name','status','designation','category','original','date','of','appointment','at','current','cessation','if','applicable']);
+ const clean=(arr)=>arr.map(x=>x.trim()).filter(x=>x&&!headerWords.has(x.toLowerCase())).join(' ').replace(/\\s+/g,' ').trim();
+ const getDate=(arr)=>{const m=arr.join(' ').match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/);return m?m[0]:''};
  for(let pageNo=1;pageNo<=doc.numPages;pageNo++){
-  const page=await doc.getPage(pageNo),content=await page.getTextContent(),items=content.items.filter(x=>x.str&&x.str.trim()).map(x=>({x:Number(x.transform?.[4]||0),y:Number(x.transform?.[5]||0),t:x.str.trim()}));
+  const page=await doc.getPage(pageNo),content=await page.getTextContent();
+  const items=content.items.filter(x=>x.str&&x.str.trim()).map(x=>({x:Number(x.transform?.[4]||0),y:Number(x.transform?.[5]||0),t:x.str.trim()}));
   allText.push(...items.map(x=>x.t));
-  const lines=[];for(const it of items){let line=lines.find(z=>Math.abs(z.y-it.y)<=2);if(!line){line={y:it.y,items:[]};lines.push(line)}line.items.push(it)}
+  const lines=[];
+  for(const it of items){let line=lines.find(z=>Math.abs(z.y-it.y)<=2);if(!line){line={y:it.y,items:[]};lines.push(line)}line.items.push(it)}
   lines.sort((a,b)=>b.y-a.y);
-  const starts=[];for(let i=0;i<lines.length;i++){const sr=lines[i].items.find(x=>x.x>=90&&x.x<120&&/^\d{1,2}$/.test(x.t));const cin=lines[i].items.find(x=>x.x>=125&&x.x<265&&/^(?:[A-Z]\d{5}|[A-Z]\d{5}[A-Z]{2}\d{4}PTC\d{6})$/i.test(x.t));if(sr&&cin)starts.push({i,sr:Number(sr.t),cin:cin.t})}
-  for(let n=0;n<starts.length;n++){
-   const start=starts[n],end=starts[n+1]?.i??lines.length,chunk=lines.slice(start.i,end),col={name:[],status:[],designation:[],category:[],original:[],appointment:[],cessation:[]};
-   for(const line of chunk)for(const it of line.items){if(it.x>=265&&it.x<375)col.name.push(it.t);else if(it.x>=370&&it.x<450)col.status.push(it.t);else if(it.x>=445&&it.x<525)col.designation.push(it.t);else if(it.x>=525&&it.x<595)col.category.push(it.t);else if(it.x>=595&&it.x<680)col.original.push(it.t);else if(it.x>=680&&it.x<780)col.appointment.push(it.t);else if(it.x>=780&&it.x<850)col.cessation.push(it.t)}
-   const clean=a=>a.join(' ').replace(/\s+/g,' ').trim().replace(/\s+(?:https?:\/\/|www\.).*$/i,'');
-   const date=a=>{const m=a.join(' ').match(/\d{2}\/\d{2}\/\d{4}/);return m?m[0]:''};
-   let name=clean(col.name);const status=clean(col.status).replace(/\s+/g,' ').trim();let designation=clean(col.designation);let category=clean(col.category);
+  const anchors=[];
+  for(let i=0;i<lines.length;i++){
+   const sr=lines[i].items.find(x=>x.x>=85&&x.x<120&&/^\\d{1,2}$/.test(x.t));
+   const cin=lines[i].items.find(x=>x.x>=120&&x.x<265&&cinPattern.test(x.t.replace(/\\s/g,'')));
+   if(sr&&cin)anchors.push({i,sr:Number(sr.t),cin:cin.t.replace(/\\s/g,'')});
+  }
+  for(let n=0;n<anchors.length;n++){
+   const a=anchors[n],from=n===0?0:anchors[n-1].i+1,chunk=lines.slice(from,a.i+1);
+   const cols={name:[],status:[],designation:[],category:[],original:[],appointment:[],cessation:[]};
+   for(const line of chunk)for(const it of line.items){
+    if(it.x>=260&&it.x<370)cols.name.push(it.t);
+    else if(it.x>=370&&it.x<445)cols.status.push(it.t);
+    else if(it.x>=445&&it.x<520)cols.designation.push(it.t);
+    else if(it.x>=520&&it.x<595)cols.category.push(it.t);
+    else if(it.x>=595&&it.x<675)cols.original.push(it.t);
+    else if(it.x>=675&&it.x<775)cols.appointment.push(it.t);
+    else if(it.x>=775&&it.x<850)cols.cessation.push(it.t);
+   }
+   const name=clean(cols.name);
+   const status=clean(cols.status),designation=clean(cols.designation),category=clean(cols.category);
    if(!name)continue;
-   records.push({'Director name':'','DIN':'','Company name':name,'CIN / FCRN':start.cin,'Company status':status,'Designation':designation,'Category':category,'Original appointment date':date(col.original),'Appointment date':date(col.appointment),'Cessation date':date(col.cessation),'Status':date(col.cessation)?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':start.sr});
+   const cessation=getDate(cols.cessation);
+   records.push({'Director name':'','DIN':'','Company name':name,'CIN / FCRN':a.cin,'Company status':status,'Designation':designation,'Category':category,'Original appointment date':getDate(cols.original),'Appointment date':getDate(cols.appointment),'Cessation date':cessation,'Status':cessation?'Resigned':'Active','Source / reference':'MCA Director Master Info PDF · '+file.name,'_sourceRow':a.sr});
   }
  }
- const textAll=allText.join(' '),din=(textAll.match(/\b\d{8}\b/)||[])[0]||'',nameMatch=textAll.match(/Name of Director\/Designated Partner\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\b[A-Z][A-Z]+\s+[A-Z][A-Z]+\b/)||[])[0]||'');
+ const textAll=allText.join(' '),din=(textAll.match(/\\b\\d{8}\\b/)||[])[0]||'',nameMatch=textAll.match(/Name of Director\\/Designated Partner\\s+([A-Z][A-Z .'-]{2,})/i),directorName=nameMatch?nameMatch[1].trim():((textAll.match(/\\b[A-Z][A-Z]+\\s+[A-Z][A-Z]+\\b/)||[])[0]||'');
  if(!records.length)throw new Error('No associated-company rows could be read. Please use the original searchable MCA Director Master Info PDF.');
+ records.sort((a,b)=>a._sourceRow-b._sourceRow);
  records.forEach(r=>{r['Director name']=directorName;r.DIN=din;delete r._sourceRow});
  return {directorName,din,records};
 }
 function setupDirectorMasterControls(){
  const select=document.querySelector('#directorMasterSelect');if(select)select.onchange=()=>{render()};
- const input=document.querySelector('#directorMasterPdf');if(input)input.onchange=async()=>{const file=input.files?.[0];if(!file)return;try{const parsed=await extractDirectorMasterPDF(file);const existing=new Set(db.directors.map(x=>[x.DIN,x['CIN / FCRN'],x.Designation,x['Appointment date'],x['Cessation date']].join('|')));let added=0;for(const r of parsed.records){const k=[r.DIN,r['CIN / FCRN'],r.Designation,r['Appointment date'],r['Cessation date']].join('|');if(!existing.has(k)){db.directors.push({_id:id(),...r});existing.add(k);added++}}save();alert('Imported '+added+' new appointment-history entries for '+parsed.directorName+' (DIN '+parsed.din+'). Total rows read: '+parsed.records.length+'. Please compare the complete list with the MCA PDF.');}catch(err){alert('Director PDF import failed: '+(err.message||err))}finally{input.value=''}};
+ const input=document.querySelector('#directorMasterPdf');if(input)input.onchange=async()=>{const file=input.files?.[0];if(!file)return;try{const parsed=await extractDirectorMasterPDF(file);const preview=parsed.records.slice(0,4).map((r,i)=>(i+1)+'. '+r['CIN / FCRN']+' — '+r['Company name']).join('\\n');if(!confirm('MCA PDF preview\\nDirector: '+parsed.directorName+' (DIN '+parsed.din+')\\nRows detected: '+parsed.records.length+'\\n\\n'+preview+'\\n\\nImport these rows? Existing records will not be overwritten or deleted.'))return;const existing=new Set(db.directors.map(x=>[x.DIN,x['CIN / FCRN'],x.Designation,x['Appointment date'],x['Cessation date']].join('|')));let added=0;for(const r of parsed.records){const k=[r.DIN,r['CIN / FCRN'],r.Designation,r['Appointment date'],r['Cessation date']].join('|');if(!existing.has(k)){db.directors.push({_id:id(),...r});existing.add(k);added++}}save();alert('Imported '+added+' new appointment-history entries for '+parsed.directorName+' (DIN '+parsed.din+'). Total rows read: '+parsed.records.length+'.');}catch(err){alert('Director PDF import failed: '+(err.message||err))}finally{input.value=''}};
 }
 function directorSection(items){const fields=['Director name','DIN','Designation','Appointment date','Cessation date','Status','Source / reference'];if(!items.length)return '<section class="detail-section"><div class="section-head"><h3>Directors / KMP</h3><button class="btn" data-related="directors">+ Add director</button></div><div class="empty compact">No directors linked to this company yet.</div></section>';const opts=items.map((r,i)=>'<option value="'+esc(r._id)+'">'+esc((r['Director name']||'Unnamed director')+(r.DIN?' · DIN '+r.DIN:''))+'</option>').join('');const card=items.map((r,i)=>'<div class="director-detail-card" data-director-card="'+esc(r._id)+'" '+(i?'hidden':'')+'><div class="detail-grid">'+fields.map(k=>'<div class="detail-field"><span>'+esc(k)+'</span><strong>'+esc(r[k]||'—')+'</strong></div>').join('')+'</div>'+attachmentBlock(r._id,'director-appointment-br','Upload BR of appointment','Board Resolution of Appointment (PDF, Word or image)')+'<div class="form-actions"><button class="btn" data-edit-related="directors" data-id="'+esc(r._id)+'">Edit selected director</button></div></div>').join('');return '<section class="detail-section"><div class="section-head"><h3>Directors / KMP ('+items.length+')</h3><button class="btn" data-related="directors">+ Add director</button></div>'+(items.length>1?'<label class="field" style="max-width:520px;margin:0 0 14px">Select director to view full details<select id="directorSelector">'+opts+'</select></label>':'')+card+'</section>';}
 function auditorSection(items){if(!items.length)return '<section class="detail-section"><div class="section-head"><h3>Auditors</h3><button class="btn" data-related="auditors">+ Add auditor</button></div><div class="empty compact">No auditors linked to this company yet.</div></section>';return '<section class="detail-section"><div class="section-head"><h3>Auditors ('+items.length+')</h3><button class="btn" data-related="auditors">+ Add auditor</button></div>'+items.map((r,i)=>'<div class="detail-section compact"><div class="detail-grid">'+['Auditor / firm name','FRN','Membership number','Appointment date','Financial year','Status','Source / reference'].map(k=>'<div class="detail-field"><span>'+esc(k)+'</span><strong>'+esc(r[k]||'—')+'</strong></div>').join('')+'</div>'+attachmentBlock(r._id,'auditor-appointment-br','Upload BR of appointment','Board Resolution of Auditor Appointment (PDF, Word or image)')+'<div class="form-actions"><button class="btn" data-edit-related="auditors" data-id="'+esc(r._id)+'">Edit auditor</button></div></div>').join('')+'</section>'}
