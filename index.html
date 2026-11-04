@@ -104,7 +104,7 @@ async function extractTextFromPDF(file){
    const anchor=anchors[anchorIndex];
    // Use the midpoint between adjacent DIN anchors as row boundaries. This keeps
    // every wrapped name line with its own DIN without pulling text from the next director.
-   const upper=anchorIndex===0?anchor.y+24:(anchors[anchorIndex-1].y+anchor.y)/2;
+   const upper=anchorIndex===0?anchor.y+18:(anchors[anchorIndex-1].y+anchor.y)/2;
    const lower=anchorIndex===anchors.length-1?anchor.y-24:(anchor.y+anchors[anchorIndex+1].y)/2;
    const within=items.filter(v=>v!==anchor&&v.y<=upper&&v.y>=lower);
    const value=key=>{const c=columns.find(x=>x.key===key);return within.filter(v=>v.x>=c.min&&v.x<c.max).sort((a,b)=>b.y-a.y||a.x-b.x).map(v=>v.text).join(' ').replace(/\s+/g,' ').trim()};
