@@ -195,7 +195,7 @@ if(addressIndex>=0){
  }
  if(addressParts.length)values['Registered address']=addressParts.join(' ').replace(/\s+/g,' ').trim();
 }
-const categoryMatch=all.match(/Category\\s*of\\s*Company\\s*[:：\\-]?\\s*(.+)/i);const category=(categoryMatch&&categoryMatch[1]||nextAfterLabel(/^Category of Company$/i)).trim();
+const categoryMatch=all.match(/Category\s*of\s*Company\s*[:：\-]?\s*(.+)/i);const category=(categoryMatch&&categoryMatch[1]||nextAfterLabel(/^Category of Company$/i)).trim();
 const subcategory=values['Subcategory']||'';
 const classOfCompany=values['Class of Company']||'';
 if(category||subcategory||classOfCompany)values['Company type']=[category,subcategory,classOfCompany].filter(Boolean).join('; ');
