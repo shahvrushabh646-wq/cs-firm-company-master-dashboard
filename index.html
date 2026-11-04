@@ -224,16 +224,16 @@ for(const [field,re] of Object.entries(patterns)){
   }
  }
 }
-const directors=[];const ix=all.search(/Director\\s*\\/\\s*Signatory\\s*Details/i);
+const directors=[];const ix=all.search(/Director\s*\/\s*Signatory\s*Details/i);
 if(ix>=0){
- const tail=all.slice(ix).split(/\\r?\\n/).slice(1);
- const rowRe=/^(\\d{1,3})\\s+([A-Z0-9]{8,10})\\s+([\\p{L}][\\p{L} .'-]{2,}?)\\s+((?:(?:Managing|Whole-time|Additional|Nominee|Independent)\\s+)?(?:Director|Company Secretary|Chief Executive Officer|Chief Financial Officer|Chief Operating Officer|Manager|Authorised Representative))\\s+(Professional|Promoter|Nominee|Independent)\\s+(\\d{2}\\/\\d{2}\\/\\d{4})\\s+(-|\\d{2}\\/\\d{2}\\/\\d{4})\\s+(Yes|No)$/iu;
+ const tail=all.slice(ix).split(/\r?\n/).slice(1);
+ const rowRe=/^(\d{1,3})\s+([A-Z0-9]{8,10})\s+([\p{L}][\p{L} .'-]{2,}?)\s+((?:(?:Managing|Whole-time|Additional|Nominee|Independent)\s+)?(?:Director|Company Secretary|Chief Executive Officer|Chief Financial Officer|Chief Operating Officer|Manager|Authorised Representative))\s+(Professional|Promoter|Nominee|Independent)\s+(\d{2}\/\d{2}\/\d{4})\s+(-|\d{2}\/\d{2}\/\d{4})\s+(Yes|No)$/iu;
  for(const line of tail){
   const m=line.trim().match(rowRe);
   if(!m)continue;
   const [,sr,din,name,designation,category,appointment,cessation,signatory]=m;
   if(directors.some(d=>d.DIN===din&&d['Sr. No.']===sr))continue;
-  directors.push({'Sr. No.':sr,'Director name':name.trim().replace(/\\s+/g,' '),'DIN':din,'Designation':designation.trim(),'Category':category.trim(),'Appointment date':appointment,'Cessation date':cessation==='-'?'':cessation,'Signatory':signatory,'Status':signatory.toLowerCase()==='yes'?'Active':'Inactive','Source / reference':'MCA Company Information PDF'});
+  directors.push({'Sr. No.':sr,'Director name':name.trim().replace(/\s+/g,' '),'DIN':din,'Designation':designation.trim(),'Category':category.trim(),'Appointment date':appointment,'Cessation date':cessation==='-'?'':cessation,'Signatory':signatory,'Status':signatory.toLowerCase()==='yes'?'Active':'Inactive','Source / reference':'MCA Company Information PDF'});
  }
 }
 return {companyFields:values,directors};
