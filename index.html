@@ -100,8 +100,13 @@ async function extractTextFromPDF(file){
   // baselines, so anchoring rows to the Sr. No. baseline can drop the first/last name line.
   const anchors=items.filter(v=>/^\d{8}$/.test(v.text)&&v.x>hx.din-18&&v.x<hx.name-8).sort((a,b)=>b.y-a.y);
   const directorRows=[];
-  for(const anchor of anchors){
-   const within=items.filter(v=>v!==anchor&&Math.abs(v.y-anchor.y)<=15);
+  for(let anchorIndex=0;anchorIndex<anchors.length;anchorIndex++){
+   const anchor=anchors[anchorIndex];
+   // Use the midpoint between adjacent DIN anchors as row boundaries. This keeps
+   // every wrapped name line with its own DIN without pulling text from the next director.
+   const upper=anchorIndex===0?anchor.y+24:(anchors[anchorIndex-1].y+anchor.y)/2;
+   const lower=anchorIndex===anchors.length-1?anchor.y-24:(anchor.y+anchors[anchorIndex+1].y)/2;
+   const within=items.filter(v=>v!==anchor&&v.y<=upper&&v.y>=lower);
    const value=key=>{const c=columns.find(x=>x.key===key);return within.filter(v=>v.x>=c.min&&v.x<c.max).sort((a,b)=>b.y-a.y||a.x-b.x).map(v=>v.text).join(' ').replace(/\s+/g,' ').trim()};
    const sr=value('sr').match(/\b\d{1,3}\b/)?.[0]||String(directorRows.length+1),din=anchor.text;
    let name=value('name'),designation=value('designation');
