@@ -204,11 +204,17 @@ const patterns={
 for(const [field,re] of Object.entries(patterns)){
  for(let i=0;i<lines.length;i++){
   const line=lines[i];let m=line.match(re);
-  if(field==='Registered address'&&/registered\s*address/i.test(line)){
-   let v=line.replace(/^.*?registered\s*address\s*/i,'').replace(/^[:：\-\s]+/,'').trim();
-   const extra=[];if(v&&v!=='-')extra.push(v);
-   for(let j=i+1;j<lines.length&&j<=i+3;j++){if(/^(?:address at which|listed in stock|category of company|subcategory|class of company|ACTIVE compliance)/i.test(lines[j]))break;if(/Maharashtra|India|Mumbai|Prabhadevi|400\d{3}/i.test(lines[j]))extra.push(lines[j]);}
-   if(extra.length){values[field]=extra.join(' ').replace(/\s+/g,' ').trim();break;}
+  if(field==='Registered address'){
+   const addressLabel=/(?:registered\s*(?:office\s*)?address|registered\s*office|full\s*address)\s*[:：\-]?\s*/i;
+   const start=line.match(addressLabel);
+   if(start){
+    const nextField=/^(?:email(?:\s*id|\s*address)?|phone(?:\s*number)?|mobile|telephone|listed\s+in\s+stock|category\s+of\s+company|subcategory(?:\s+of\s+the\s+company)?|class\s+of\s+company|company\s+status|status|date\s+of\s+incorporation|incorporation\s+date|date\s+of\s+last\s+agm|date\s+of\s+balance\s+sheet|authorized\s+capital|authorised\s+capital|paid\s*[- ]?up\s+capital|roc(?:\s|$)|registrar\s+of\s+companies|cin\b|llpin\b|director\s*\/\s*signatory|details\s+of\s+directors?)(?:\s*[:：\-]|\s|$)/i;
+    const cutAtNextField=(value)=>{const m=value.match(/\s+(?=(?:email(?:\s*id|\s*address)?|phone(?:\s*number)?|mobile|telephone|listed\s+in\s+stock|category\s+of\s+company|subcategory|class\s+of\s+company|company\s+status|date\s+of\s+incorporation|date\s+of\s+last\s+agm|date\s+of\s+balance\s+sheet|authorized\s+capital|authorised\s+capital|paid\s*[- ]?up\s+capital|registrar\s+of\s+companies)\s*[:：])/i);return m?value.slice(0,m.index).trim():value.trim()};
+    const parts=[];let first=cutAtNextField(line.slice(start.index+start[0].length).trim());if(first&&first!=='-')parts.push(first);
+    for(let j=i+1;j<lines.length&&j<=i+10;j++){const next=lines[j].trim();if(!next||nextField.test(next))break;const clean=cutAtNextField(next);if(clean)parts.push(clean);if(clean!==next)break;}
+    const address=parts.join(', ').replace(/\s+/g,' ').replace(/,\s*,/g,', ').trim();
+    if(address&&address.length<1200){values[field]=address;break;}
+   }
   }
   if(m&&m[1]){
    let v=m[1].trim().replace(/\s{2,}/g,' ');
